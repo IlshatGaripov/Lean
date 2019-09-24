@@ -17,7 +17,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.IO;
 using QuantConnect.Configuration;
 using QuantConnect.ToolBox.AlgoSeekFuturesConverter;
 using QuantConnect.ToolBox.AlgoSeekOptionsConverter;
@@ -38,6 +37,7 @@ using QuantConnect.ToolBox.KaikoDataConverter;
 using QuantConnect.ToolBox.KrakenDownloader;
 using QuantConnect.ToolBox.NseMarketDataConverter;
 using QuantConnect.ToolBox.OandaDownloader;
+using QuantConnect.ToolBox.PolygonDownloader;
 using QuantConnect.ToolBox.PsychSignalDataConverter;
 using QuantConnect.ToolBox.QuandlBitfinexDownloader;
 using QuantConnect.ToolBox.QuantQuoteConverter;
@@ -163,6 +163,15 @@ namespace QuantConnect.ToolBox
                             toDate,
                             GetParameterOrExit(optionsObject, "destination-dir")
                         );
+                        break;
+                    case "poldl":
+                    case "polygondownloader":
+                        PolygonDownloaderProgram.Initialize(
+                            GetParameterOrExit(optionsObject, "api-key"),
+                            GetParameterOrExit(optionsObject, "exchange"),
+                            GetParameterOrDefault(optionsObject, "destination-dir", null)
+                            );
+                        PolygonDownloaderProgram.PolygonDownloader(tickers, resolution, fromDate, toDate);
                         break;
 
                     default:
