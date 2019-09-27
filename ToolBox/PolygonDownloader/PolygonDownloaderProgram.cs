@@ -153,7 +153,7 @@ namespace QuantConnect.ToolBox.PolygonDownloader
                             Console.WriteLine("Downloading ticks for the day: {0:d}", currentDate);
 
                             // download
-                            ticks = _dataDownloader.DownloadHistoricEquityTrades(symbol, currentDate);
+                            ticks = _dataDownloader.DownloadHistoricEquityTradesV2(symbol, currentDate);
                         }
                         else
                         {
