@@ -27,6 +27,8 @@ namespace QuantConnect.Brokerages
     /// </summary>
     public class BinanceBrokerageModel : DefaultBrokerageModel
     {
+        private const decimal _maxLeverage = 3m;
+
         /// <summary>
         /// Gets a map of the default markets to be used for each security type
         /// </summary>
@@ -38,10 +40,12 @@ namespace QuantConnect.Brokerages
         /// <param name="accountType">The type of account to be modeled, defaults to <see cref="AccountType.Cash"/></param>
         public BinanceBrokerageModel(AccountType accountType = AccountType.Cash) : base(accountType)
         {
+            /*
             if (accountType == AccountType.Margin)
             {
                 throw new ArgumentException("The Binance brokerage does not currently support Margin trading.");
             }
+            */
         }
 
         /// <summary>
@@ -53,7 +57,13 @@ namespace QuantConnect.Brokerages
         /// <returns>The buying power model for this brokerage/security</returns>
         public override IBuyingPowerModel GetBuyingPowerModel(Security security)
         {
+            return AccountType == AccountType.Cash
+                ? (IBuyingPowerModel) new CashBuyingPowerModel()
+                : new SecurityMarginModel(2);
+
+            /*
             return new CashBuyingPowerModel();
+            */
         }
 
         /// <summary>
@@ -63,8 +73,17 @@ namespace QuantConnect.Brokerages
         /// <returns></returns>
         public override decimal GetLeverage(Security security)
         {
-            // margin trading is not currently supported by Binance
-            return 1m;
+            if (AccountType == AccountType.Cash || security.IsInternalFeed() || security.Type == SecurityType.Base)
+            {
+                return 1m;
+            }
+
+            if (security.Type == SecurityType.Crypto)
+            {
+                return _maxLeverage;
+            }
+
+            throw new ArgumentException($"Invalid security type: {security.Type}", nameof(security));
         }
 
         /// <summary>

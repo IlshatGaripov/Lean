@@ -181,7 +181,7 @@ namespace QuantConnect.Brokerages
         /// </summary>
         protected virtual void OnClose(WebSocketCloseData e)
         {
-            Log.Trace($"WebSocketClientWrapper.OnClose(): Connection closed (IsOpen:{IsOpen}, State:{_client.State}): {_url}");
+            Log.Trace($"WebSocketClientWrapper.OnClose(): Connection closed (IsOpen:{IsOpen}, State:{_client?.State}): {_url}");
             Closed?.Invoke(this, e);
         }
 

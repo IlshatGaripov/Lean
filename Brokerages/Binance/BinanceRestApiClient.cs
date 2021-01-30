@@ -28,6 +28,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using QuantConnect.Brokerages.Binance.Messages;
 
 namespace QuantConnect.Brokerages.Binance
 {
@@ -38,6 +39,11 @@ namespace QuantConnect.Brokerages.Binance
     {
         private const string RestApiUrl = "https://api.binance.com";
         private const string UserDataStreamEndpoint = "/api/v3/userDataStream";
+        private const string SpotAccountPrefix = "/api/v3";
+        private const string MarginAccountPrefix = "/sapi/v1/margin";
+
+        private const string AccountEndpoint = "account";
+        private const string OpenOrdersEndpoint = "openOrders";
 
         private readonly SymbolPropertiesDatabaseSymbolMapper _symbolMapper;
         private readonly ISecurityProvider _securityProvider;
@@ -46,12 +52,12 @@ namespace QuantConnect.Brokerages.Binance
         private readonly object _listenKeyLocker = new object();
 
         /// <summary>
-        /// Event that fires each time an order is filled
+        /// Event that fires each time an order is submitted
         /// </summary>
         public event EventHandler<BinanceOrderSubmitEventArgs> OrderSubmit;
 
         /// <summary>
-        /// Event that fires each time an order is filled
+        /// Event that fires each time an order status is changed
         /// </summary>
         public event EventHandler<OrderEvent> OrderStatusChanged;
 
@@ -108,49 +114,83 @@ namespace QuantConnect.Brokerages.Binance
         /// <summary>
         /// Gets the total account cash balance for specified account type
         /// </summary>
+        /// <param name="accountType">Brokerage account type (Cash or Margin)</param>
         /// <returns></returns>
-        public Messages.AccountInformation GetCashBalance()
+        public IEnumerable<CashAmount> GetCashBalance(AccountType? accountType)
         {
-            var queryString = $"timestamp={GetNonce()}";
-            var endpoint = $"/api/v3/account?{queryString}&signature={AuthenticationToken(queryString)}";
-            var request = new RestRequest(endpoint, Method.GET);
+            var request = new RestRequest(GetUrl(AccountEndpoint, accountType), Method.GET);
             request.AddHeader(KeyHeader, ApiKey);
 
-            var response = ExecuteRestRequest(request);
+            var response = ExecuteRestRequest(request);  // Execute
+
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception($"BinanceBrokerage.GetCashBalance: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                throw new Exception($"BinanceBrokerage.GetCashBalance: request failed: " +
+                                    $"[{(int)response.StatusCode}] {response.StatusDescription}, " +
+                                    $"Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
 
-            return JsonConvert.DeserializeObject<Messages.AccountInformation>(response.Content);
+            Log.Trace(response.Content);
+
+            return accountType == AccountType.Cash
+                ? GetSpotAccountAmounts(response.Content)
+                : GetMarginAccountAmounts(response.Content);
+        }
+
+        private IEnumerable<CashAmount> GetSpotAccountAmounts(string json)
+        {
+            return JsonConvert.DeserializeObject<BinanceSpotAccount>(json)?.
+                Balances?.Where(balance => balance.Total > 0)
+                .Select(b => new CashAmount(b.Total, b.Asset.LazyToUpper()));
+        }
+
+        private IEnumerable<CashAmount> GetMarginAccountAmounts(string json)
+        {
+            return JsonConvert.DeserializeObject<BinanceMarginAccount>(json)?.Balances?
+                .Where(balance => balance.NetAsset != 0)
+                .Select(b => new CashAmount(b.NetAsset, b.Asset.LazyToUpper()));
         }
 
         /// <summary>
-        /// Gets all orders not yet closed
+        /// Gets all account open orders
         /// </summary>
+        /// <param name="accountType">Brokerage account type (Cash or Margin)</param>
         /// <returns></returns>
-        public IEnumerable<Messages.OpenOrder> GetOpenOrders()
+        public IEnumerable<BinancePlacedOrder> GetOpenOrders(AccountType? accountType)
         {
-            var queryString = $"timestamp={GetNonce()}";
-            var endpoint = $"/api/v3/openOrders?{queryString}&signature={AuthenticationToken(queryString)}";
-            var request = new RestRequest(endpoint, Method.GET);
+            var request = new RestRequest(GetUrl(OpenOrdersEndpoint, accountType), Method.GET);
             request.AddHeader(KeyHeader, ApiKey);
 
             var response = ExecuteRestRequest(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception($"BinanceBrokerage.GetCashBalance: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                throw new Exception($"BinanceBrokerage.GetCashBalance: request failed: " +
+                                    $"[{(int)response.StatusCode}] {response.StatusDescription}, " +
+                                    $"Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
 
-            return JsonConvert.DeserializeObject<Messages.OpenOrder[]>(response.Content);
+            Log.Trace(response.Content);
+
+            return JsonConvert.DeserializeObject<BinancePlacedOrder[]>(response.Content);
+        }
+
+        private string GetUrl(string endpoint, AccountType? accountType)
+        {
+            var queryString = $"timestamp={GetNonce()}";
+            var prefix = accountType == AccountType.Cash
+                ? SpotAccountPrefix
+                : MarginAccountPrefix;
+
+            return $"{prefix}/{endpoint}?{queryString}&signature={AuthenticationToken(queryString)}";
         }
 
         /// <summary>
         /// Places a new order and assigns a new broker ID to the order
         /// </summary>
         /// <param name="order">The order to be placed</param>
+        /// <param name="accountType">Brokerage account type (Cash or Margin)</param>
         /// <returns>True if the request for a new order has been placed, false otherwise</returns>
-        public bool PlaceOrder(Order order)
+        public bool PlaceOrder(Order order, AccountType? accountType)
         {
             // supported time in force values {GTC, IOC, FOK}
             // use GTC as LEAN doesn't support others yet
@@ -194,7 +234,18 @@ namespace QuantConnect.Brokerages.Binance
                     throw new NotSupportedException($"BinanceBrokerage.ConvertOrderType: Unsupported order type: {order.Type}");
             }
 
-            const string endpoint = "/api/v3/order";
+            string endpoint = string.Empty;
+            switch (accountType)
+            {
+                case AccountType.Margin:
+                    body["sideEffectType"] = "MARGIN_BUY";  // To borrow automatically
+                    endpoint = "/sapi/v1/margin/order";
+                    break;
+                case AccountType.Cash:
+                    endpoint = "/api/v3/order";
+                    break;
+            }
+
             body["timestamp"] = GetNonce();
             body["signature"] = AuthenticationToken(body.ToQueryString());
             var request = new RestRequest(endpoint, Method.POST);
@@ -208,9 +259,11 @@ namespace QuantConnect.Brokerages.Binance
             var response = ExecuteRestRequest(request);
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                var raw = JsonConvert.DeserializeObject<Messages.NewOrder>(response.Content);
+                Log.Trace(response.Content);
+                var binanceOrder = JsonConvert.DeserializeObject<BinancePlacedOrder>(response.Content);
 
-                if (string.IsNullOrEmpty(raw?.Id))
+                /*
+                if (string.IsNullOrEmpty(raw?.OrderId))
                 {
                     var errorMessage = $"Error parsing response from place order: {response.Content}";
                     OnOrderEvent(new OrderEvent(
@@ -223,8 +276,9 @@ namespace QuantConnect.Brokerages.Binance
 
                     return true;
                 }
+                */
 
-                OnOrderSubmit(raw, order);
+                OnOrderSubmit(binanceOrder, order);
                 return true;
             }
 
@@ -293,7 +347,7 @@ namespace QuantConnect.Brokerages.Binance
         /// </summary>
         /// <param name="request">The historical data request</param>
         /// <returns>An enumerable of bars covering the span specified in the request</returns>
-        public IEnumerable<Messages.Kline> GetHistory(Data.HistoryRequest request)
+        public IEnumerable<Kline> GetHistory(Data.HistoryRequest request)
         {
             var resolution = ConvertResolution(request.Resolution);
             var resolutionInMs = (long)request.Resolution.ToTimeSpan().TotalMilliseconds;
@@ -311,7 +365,9 @@ namespace QuantConnect.Brokerages.Binance
 
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    throw new Exception($"BinanceBrokerage.GetHistory: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                    throw new Exception($"BinanceBrokerage.GetHistory: request failed: " +
+                                        $"[{(int)response.StatusCode}] {response.StatusDescription}, " +
+                                        $"Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
                 }
 
                 var klines = JsonConvert.DeserializeObject<object[][]>(response.Content)
@@ -374,17 +430,19 @@ namespace QuantConnect.Brokerages.Binance
         /// Provides the current tickers price
         /// </summary>
         /// <returns></returns>
-        public Messages.PriceTicker[] GetTickers()
+        public BinancePrice[] GetTickers()
         {
             const string endpoint = "/api/v3/ticker/price";
             var req = new RestRequest(endpoint, Method.GET);
             var response = ExecuteRestRequest(req);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception($"BinanceBrokerage.GetTick: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                throw new Exception($"BinanceBrokerage.GetTick: request failed: " +
+                                    $"[{(int)response.StatusCode}] {response.StatusDescription}, " +
+                                    $"Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
 
-            return JsonConvert.DeserializeObject<Messages.PriceTicker[]>(response.Content);
+            return JsonConvert.DeserializeObject<BinancePrice[]>(response.Content);
         }
 
         /// <summary>
@@ -398,7 +456,9 @@ namespace QuantConnect.Brokerages.Binance
             var response = ExecuteRestRequest(request);
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception($"BinanceBrokerage.StartSession: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                throw new Exception($"BinanceBrokerage.StartSession: request failed: " +
+                                    $"[{(int)response.StatusCode}] {response.StatusDescription}, " +
+                                    $"Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
 
             var content = JObject.Parse(response.Content);
@@ -516,26 +576,26 @@ namespace QuantConnect.Brokerages.Binance
         }
 
         /// <summary>
-        /// Event invocator for the OrderFilled event
+        /// Event invocator for the OrderSubmit event
         /// </summary>
-        /// <param name="newOrder">The brokerage order submit result</param>
+        /// <param name="binanceOrder">The Binance brokerage order submit result</param>
         /// <param name="order">The lean order</param>
-        private void OnOrderSubmit(Messages.NewOrder newOrder, Order order)
+        private void OnOrderSubmit(BinancePlacedOrder binanceOrder, Order order)
         {
             try
             {
                 OrderSubmit?.Invoke(
                     this,
-                    new BinanceOrderSubmitEventArgs(newOrder.Id, order));
+                    new BinanceOrderSubmitEventArgs(binanceOrder.OrderId.ToStringInvariant(), order));
 
                 // Generate submitted event
                 OnOrderEvent(new OrderEvent(
                     order,
-                    Time.UnixMillisecondTimeStampToDateTime(newOrder.TransactionTime),
+                    Time.UnixMillisecondTimeStampToDateTime(binanceOrder.CreateTimeStamp),
                     OrderFee.Zero,
                     "Binance Order Event")
-                { Status = OrderStatus.Submitted }
-                );
+                { Status = OrderStatus.Submitted });
+
                 Log.Trace($"Order submitted successfully - OrderId: {order.Id}");
             }
             catch (Exception err)

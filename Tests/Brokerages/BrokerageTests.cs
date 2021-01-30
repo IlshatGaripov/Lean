@@ -43,6 +43,8 @@ namespace QuantConnect.Tests.Brokerages
         [SetUp]
         public void Setup()
         {
+            Log.LogHandler = new CompositeLogHandler();
+
             Log.Trace("");
             Log.Trace("");
             Log.Trace("--- SETUP ---");

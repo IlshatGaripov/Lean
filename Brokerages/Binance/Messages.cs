@@ -22,26 +22,8 @@ namespace QuantConnect.Brokerages.Binance.Messages
 {
 #pragma warning disable 1591
 
-    public class AccountInformation
-    {
-        public Balance[] Balances { get; set; }
-
-        public class Balance
-        {
-            public string Asset { get; set; }
-            public decimal Free { get; set; }
-            public decimal Locked { get; set; }
-            public decimal Amount => Free + Locked;
-        }
-    }
-
-    public class PriceTicker
-    {
-        public string Symbol { get; set; }
-        public decimal Price { get; set; }
-    }
-
-    public class Order
+    /*
+    public class BinanceOrder
     {
         [JsonProperty("orderId")]
         public string Id { get; set; }
@@ -59,16 +41,18 @@ namespace QuantConnect.Brokerages.Binance.Messages
         public decimal Quantity => string.Equals(Side, "buy", StringComparison.OrdinalIgnoreCase) ? OriginalAmount : -OriginalAmount;
     }
 
-    public class OpenOrder : Order
+    public class OpenOrder : BinanceOrder
     {
         public long Time { get; set; }
     }
-
-    public class NewOrder : Order
+    
+    public class NewOrder : BinanceOrder
     {
         [JsonProperty("transactTime")]
         public long TransactionTime { get; set; }
     }
+    
+    */
 
     public enum EventType
     {

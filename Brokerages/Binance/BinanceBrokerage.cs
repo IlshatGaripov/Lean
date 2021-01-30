@@ -47,6 +47,27 @@ namespace QuantConnect.Brokerages.Binance
         private readonly Timer _keepAliveTimer;
         private readonly Timer _reconnectTimer;
         private readonly BinanceRestApiClient _apiClient;
+        private AccountType? _accountType;
+
+        /// <summary>
+        /// Stands for account type, Margin or Cash.
+        /// </summary>
+        public AccountType? AccountType
+        {
+            get
+            {
+                if (_accountType == null)
+                {
+                    return _accountType = _algorithm.BrokerageModel.AccountType;
+                }
+
+                return _accountType;
+            }
+            set
+            {
+                _accountType = value;
+            }
+        }
 
         /// <summary>
         /// Constructor for brokerage
@@ -159,14 +180,7 @@ namespace QuantConnect.Brokerages.Binance
         /// <returns></returns>
         public override List<CashAmount> GetCashBalance()
         {
-            var account = _apiClient.GetCashBalance();
-            var balances = account.Balances?.Where(balance => balance.Amount > 0).ToList();
-            if (balances == null || !balances.Any())
-                return new List<CashAmount>();
-
-            return balances
-                .Select(b => new CashAmount(b.Amount, b.Asset.LazyToUpper()))
-                .ToList();
+            return _apiClient.GetCashBalance(AccountType).ToList();
         }
 
         /// <summary>
@@ -175,7 +189,7 @@ namespace QuantConnect.Brokerages.Binance
         /// <returns></returns>
         public override List<Order> GetOpenOrders()
         {
-            var orders = _apiClient.GetOpenOrders();
+            var orders = _apiClient.GetOpenOrders(AccountType);
             List<Order> list = new List<Order>();
             foreach (var item in orders)
             {
@@ -204,9 +218,9 @@ namespace QuantConnect.Brokerages.Binance
                 }
 
                 order.Quantity = item.Quantity;
-                order.BrokerId = new List<string> { item.Id };
+                order.BrokerId = new List<string> { item.OrderId.ToStringInvariant() };
                 order.Symbol = _symbolMapper.GetLeanSymbol(item.Symbol, SecurityType.Crypto, Market.Binance);
-                order.Time = Time.UnixMillisecondTimeStampToDateTime(item.Time);
+                order.Time = Time.UnixMillisecondTimeStampToDateTime(item.CreateTimeStamp);
                 order.Status = ConvertOrderStatus(item.Status);
                 order.Price = item.Price;
 
@@ -236,7 +250,7 @@ namespace QuantConnect.Brokerages.Binance
 
             WithLockedStream(() =>
             {
-                submitted = _apiClient.PlaceOrder(order);
+                submitted = _apiClient.PlaceOrder(order, AccountType);
             });
 
             return submitted;
