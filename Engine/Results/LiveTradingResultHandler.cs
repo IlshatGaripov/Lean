@@ -722,11 +722,13 @@ namespace QuantConnect.Lean.Engine.Results
             }
             SecurityType(types);
 
+            /*
             // we need to forward Console.Write messages to the algorithm's Debug function
             var debug = new FuncTextWriter(algorithm.Debug);
             var error = new FuncTextWriter(algorithm.Error);
             Console.SetOut(debug);
             Console.SetError(error);
+            */
 
             UpdateAlgorithmStatus();
         }

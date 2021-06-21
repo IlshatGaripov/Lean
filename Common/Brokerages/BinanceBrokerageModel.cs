@@ -38,10 +38,12 @@ namespace QuantConnect.Brokerages
         /// <param name="accountType">The type of account to be modeled, defaults to <see cref="AccountType.Cash"/></param>
         public BinanceBrokerageModel(AccountType accountType = AccountType.Cash) : base(accountType)
         {
+            /*
             if (accountType == AccountType.Margin)
             {
                 throw new ArgumentException("The Binance brokerage does not currently support Margin trading.");
             }
+            */
         }
 
         /// <summary>

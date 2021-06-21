@@ -85,10 +85,12 @@ namespace QuantConnect.Brokerages
         public GDAXBrokerageModel(AccountType accountType = AccountType.Cash)
             : base(accountType)
         {
+            /*
             if (accountType == AccountType.Margin)
             {
                 throw new ArgumentException("The GDAX brokerage does not currently support Margin trading.", nameof(accountType));
             }
+            */
         }
 
         /// <summary>

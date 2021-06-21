@@ -777,7 +777,7 @@ namespace QuantConnect.Lean.Engine
                             // Dequeue historical time slices if any
                             while (_historicalTimeSlicesQueue.TryDequeue(out ts))
                             {
-                                Log.Debug($"Dequeue TS >> {ts.Time}");
+                                if (algorithm.LiveMode) Log.Trace($"Dequeue TS >> {ts.Time}");
                                 yield return ts;
                             }
 
@@ -794,7 +794,7 @@ namespace QuantConnect.Lean.Engine
                             // Dequeue historical time slices if any
                             while (_historicalTimeSlicesQueue.TryDequeue(out ts))
                             {
-                                Log.Debug($"Dequeue TS >> {ts.Time}");
+                                if(algorithm.LiveMode) Log.Trace($"Dequeue TS >> {ts.Time}");
                                 yield return ts;
                             }
                         }

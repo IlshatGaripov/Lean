@@ -423,7 +423,7 @@ namespace QuantConnect.Lean.Engine.Results
             }
             SecurityType(types);
 
-            ConfigureConsoleTextWriter(algorithm);
+            //ConfigureConsoleTextWriter(algorithm);
         }
 
         /// <summary>
