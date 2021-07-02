@@ -676,7 +676,22 @@ namespace QuantConnect.ToolBox.Polygon
                         }
 
                         var time = GetTickTime(request.Symbol, utcTime);
-                        yield return new Tick(time, request.Symbol, string.Empty, string.Empty, row.Size, row.Price);
+
+                        // Look for suspicious trades.   In this case, it uses the SIP mapping for updates of high/low otherwise marks as suspicious
+                        bool suspiciousFlag = false;
+                        // Check SIP Mappings for update high/low and mark as suspicious if not update/high low.    This needs more sophistication
+                        if (row.Conditions != null)
+                        {
+                            suspiciousFlag = !PolygonSIPTradeMappings.TradeUpdateHighLow(row.Conditions[0]);
+                        }
+
+                        //var condString = row.Conditions != null ? string.Join(";", row.Conditions) : "null";
+                        //Log.Trace($"T:{time:yyyy-MM-dd HH:mm:ss.fffffff} price {row.Price} cond: {condString} susp={suspiciousFlag}");
+
+                        if (!suspiciousFlag)
+                        {
+                            yield return new Tick(time, request.Symbol, string.Empty, string.Empty, row.Size, row.Price);
+                        }
 
                         // Save the values before to jump to the next iteration
                         lastTickSipTimeStamp = row.SipTimestamp;
