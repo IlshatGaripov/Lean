@@ -289,7 +289,7 @@ namespace QuantConnect.Data
                 case SecurityType.Equity:
                     if (data.DataType == MarketDataType.QuoteBar || data.DataType == MarketDataType.Tick && (data as Tick).TickType == TickType.Quote)
                     {
-                        return false;
+                        return true;
                     }
                     break;
             }
