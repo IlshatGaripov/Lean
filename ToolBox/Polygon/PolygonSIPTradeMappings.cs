@@ -8,40 +8,40 @@ namespace QuantConnect.ToolBox.Polygon
     {
         public static string TradeConditionDescription(int modiferNumber)
         {
-            return tradeMappings[modiferNumber, 1];
+            return TradeMappings[modiferNumber, 1];
         }
         public static string TradeSIPMapping(int modiferNumber)
         {
-            return tradeMappings[modiferNumber, 2];
+            return TradeMappings[modiferNumber, 2];
         }
         public static bool TradeUpdateHighLow(int modiferNumber)
         {
-            return tradeMappings[modiferNumber, 3] == "TRUE";
+            return TradeMappings[modiferNumber, 3] == "TRUE";
         }
 
         //Consolidated Processing Guidelines
         public static bool TradeConsolidatedProcessingUpdateLast(int modiferNumber)
         {
-            if (tradeMappings[modiferNumber, 4] == "TRUE") { return true; } else { return false; }
+            if (TradeMappings[modiferNumber, 4] == "TRUE") { return true; } else { return false; }
         }
         public static bool TradeConsolidatedProcessingUpdateHighLow(int modiferNumber)
         {
-            if (tradeMappings[modiferNumber, 5] == "TRUE") { return true; } else { return false; }
+            if (TradeMappings[modiferNumber, 5] == "TRUE") { return true; } else { return false; }
         }
 
         //Market Center Processing Guidelines
         public static bool TradeMarketProcessingUpdateLast(int modiferNumber)
         {
-            if (tradeMappings[modiferNumber, 6] == "TRUE") { return true; } else { return false; }
+            if (TradeMappings[modiferNumber, 6] == "TRUE") { return true; } else { return false; }
         }
         public static bool TradeMarketProcessingUpdateVolume(int modiferNumber)
         {
-            if (tradeMappings[modiferNumber, 7] == "TRUE") { return true; } else { return false; }
+            if (TradeMappings[modiferNumber, 7] == "TRUE") { return true; } else { return false; }
         }
 
         // Array index mapped to provide access to each item very quickly
         // {"Modifier", "Condition", "SIP Mapping", "Update High/Low", "Update Last", "Update High/Low", "Update Last", "Update Volume"},
-        private static readonly string[,] tradeMappings = {
+        public static readonly string[,] TradeMappings = {
             {"0", "Regular Sale", "@", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"},
             {"1", "Acquisition", "A", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"},
             {"2", "Average Price Trade", "W", "FALSE", "FALSE", "FALSE", "FALSE", "TRUE"},

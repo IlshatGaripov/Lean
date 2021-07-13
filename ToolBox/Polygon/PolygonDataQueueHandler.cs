@@ -603,7 +603,12 @@ namespace QuantConnect.ToolBox.Polygon
                         }
 
                         var time = GetTickTime(request.Symbol, utcTime);
-                        yield return new Tick(time, request.Symbol, string.Empty, string.Empty, row.BidSize, row.BidPrice, row.AskSize, row.AskPrice);
+                        var condString = row.Conditions != null ? string.Join(";", row.Conditions) : "Null";
+                        var tick = new Tick(time, request.Symbol, string.Empty, string.Empty, row.BidSize, row.BidPrice, row.AskSize, row.AskPrice);
+
+                        //Log.Trace($"{tick.Time:yyyy-MM-dd HH:mm:ss.fffffff} | {tick.Symbol} | {tick.TickType} | B:{tick.BidPrice,-10} | A:{tick.AskPrice,-10} | {condString}");
+
+                        yield return tick;
 
                         // Save the values before to jump to the next iteration
                         lastTickSipTimeStamp = row.SipTimestamp;
@@ -676,21 +681,14 @@ namespace QuantConnect.ToolBox.Polygon
                         }
 
                         var time = GetTickTime(request.Symbol, utcTime);
-
-                        // Look for suspicious trades.   In this case, it uses the SIP mapping for updates of high/low otherwise marks as suspicious
-                        bool suspiciousFlag = false;
-                        // Check SIP Mappings for update high/low and mark as suspicious if not update/high low.    This needs more sophistication
-                        if (row.Conditions != null)
-                        {
-                            suspiciousFlag = !PolygonSIPTradeMappings.TradeUpdateHighLow(row.Conditions[0]);
-                        }
-
-                        //var condString = row.Conditions != null ? string.Join(";", row.Conditions) : "null";
-                        //Log.Trace($"T:{time:yyyy-MM-dd HH:mm:ss.fffffff} price {row.Price} cond: {condString} susp={suspiciousFlag}");
+                        var suspiciousFlag = row.Conditions != null || row.Price % 0.01m > 0;  // If conditions are null is suspicious
+                        var tick = new Tick(time, request.Symbol, string.Empty, string.Empty, row.Size, row.Price);
 
                         if (!suspiciousFlag)
                         {
-                            yield return new Tick(time, request.Symbol, string.Empty, string.Empty, row.Size, row.Price);
+                            //Log.Trace($"{tick.Time:yyyy-MM-dd HH:mm:ss.fffffff} | {tick.Symbol} | {tick.TickType} | P:{tick.Price,-10} | R:{row.Price % 0.01m}");
+
+                            yield return tick;
                         }
 
                         // Save the values before to jump to the next iteration
